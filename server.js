@@ -443,6 +443,101 @@ app.get('/hub/users', (req, res) => {
 });
 
 // =============================================================================
+// GROCERY LIST ROUTES
+// =============================================================================
+
+/**
+ * GET /hub/grocery/all
+ * Purpose: Get grocery list items from ALL users (for demo dashboard)
+ * Aggregates grocery items from all Alexa users
+ */
+app.get('/hub/grocery/all', (req, res) => {
+  try {
+    const allGroceryItems = [];
+    
+    // Collect grocery items from all visitors
+    for (const [visitorId, state] of Object.entries(hubStateByVisitorId)) {
+      const groceryList = state.groceryList || [];
+      const pendingItem = state.pendingItem || null;
+      const profile = registeredProfiles[visitorId];
+      
+      // Add each grocery item with user info
+      groceryList.forEach((item, index) => {
+        allGroceryItems.push({
+          id: `${visitorId}-${index}`,
+          item: item,
+          visitorId: visitorId,
+          userName: profile?.name || visitorId,
+          addedAt: state.debugInfo?.lastUpdated || new Date().toISOString()
+        });
+      });
+      
+      // Add pending item if exists
+      if (pendingItem) {
+        allGroceryItems.push({
+          id: `${visitorId}-pending`,
+          item: pendingItem,
+          visitorId: visitorId,
+          userName: profile?.name || visitorId,
+          isPending: true,
+          addedAt: state.debugInfo?.lastUpdated || new Date().toISOString()
+        });
+      }
+    }
+
+    console.log(`[Hub] Fetched all grocery items: ${allGroceryItems.length} items from ${Object.keys(hubStateByVisitorId).length} users`);
+
+    return res.json({
+      ok: true,
+      items: allGroceryItems,
+      totalItems: allGroceryItems.length,
+      userCount: Object.keys(hubStateByVisitorId).length
+    });
+
+  } catch (error) {
+    console.error('[Hub] Error fetching all grocery items:', error);
+    return res.status(500).json({ ok: false, error: 'Internal server error' });
+  }
+});
+
+/**
+ * DELETE /hub/grocery/all
+ * Purpose: Clear grocery list from ALL users
+ */
+app.delete('/hub/grocery/all', (req, res) => {
+  try {
+    let totalCleared = 0;
+    const clearedFrom = [];
+    
+    for (const visitorId of Object.keys(hubStateByVisitorId)) {
+      const state = hubStateByVisitorId[visitorId];
+      const count = (state.groceryList || []).length + (state.pendingItem ? 1 : 0);
+      
+      if (count > 0) {
+        totalCleared += count;
+        clearedFrom.push(visitorId);
+      }
+      
+      state.groceryList = [];
+      state.pendingItem = null;
+    }
+
+    console.log(`[Hub] Cleared ALL grocery lists: ${totalCleared} items from ${clearedFrom.length} users`);
+
+    return res.json({
+      ok: true,
+      message: `Cleared ${totalCleared} items from ${clearedFrom.length} users`,
+      totalCleared,
+      usersAffected: clearedFrom
+    });
+
+  } catch (error) {
+    console.error('[Hub] Error clearing all grocery lists:', error);
+    return res.status(500).json({ ok: false, error: 'Internal server error' });
+  }
+});
+
+// =============================================================================
 // VOICE HISTORY ROUTES
 // =============================================================================
 
